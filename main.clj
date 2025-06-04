@@ -106,11 +106,10 @@
 ;; 🔍 Buscar si una palabra está en un texto
 ;; ------------------------------------------
 
-(defn contiene-palabra? [texto palabra]
-  (let [contenido (.toLowerCase texto)
-        palabras (split (.toLowerCase palabra) " ")]
-    (some (fn [p] (.contains contenido p)) palabras)))
-
+(defn contiene-palabra? [linea palabra]
+  (let [contenido (lower-case linea)
+        p (lower-case palabra)]
+    (not (nil? (re-find (re-pattern (str "(?i)" p)) contenido)))))
 
 ;; ------------------------------------------
 ;; 📁 Leer archivos y aplicar filtro
@@ -119,11 +118,22 @@
 (defn filtrar-recetas [archivos palabra-clave]
   (filter
    (fn [ruta]
-     (let [contenido (slurp ruta)]
-       (if (= palabra-clave "all")
+     (let [contenido (slurp ruta)
+           lineas (split-lines contenido)
+           start (->> lineas
+                      (map-indexed vector)
+                      (filter (fn [[_ l]] (re-find #"(?i)ingredients" l)))
+                      first
+                      first)]
+       (if (= (lower-case palabra-clave) "all")
          true
-         (contiene-palabra? contenido palabra-clave))))
+         (if start
+           (let [seccion (subvec lineas (inc start))
+                 ingredientes (take-while #(not (re-find #"(?i)instructions" %)) seccion)]
+             (some #(contiene-palabra? % palabra-clave) ingredientes))
+           false))))
    archivos))
+
 
 ;; ------------------------------------------
 ;; 🏁 Función principal
@@ -177,6 +187,50 @@
     (doseq [i ingredientes]
       (println "•" i))))
 
+
+
+(defn extraer-nombre-ingrediente [linea]
+  (let [palabras (split (lower-case linea) " ")
+        conocidos (set (keys calorias))]
+    (first (filter #(contains? conocidos %) (reverse palabras)))))
+
+
+(defn calcular-calorias-receta [ingredientes porciones sistema]
+  (let [porciones-int (try (Integer/parseInt porciones) (catch Exception _ 1))]
+    (reduce
+     (fn [acum linea]
+       (let [nombre (extraer-nombre-ingrediente linea)
+             kcal (get calorias nombre)
+             cantidad (cond
+                        (.contains linea "cup") 1
+                        (.contains linea "tsp") 0.0625
+                        (.contains linea "tbsp") 0.125
+                        (.contains linea "large") 1
+                        :else 1)
+             total (* (or kcal 0) cantidad)]
+         (+ acum total)))
+     0
+     ingredientes)))
+(defn procesar-receta [ruta opciones]
+  (let [contenido (slurp ruta)
+        porciones (:porciones opciones)
+        sistema (:sistema opciones)
+        temperatura (extraer-temperatura contenido)
+        ingredientes (extraer-ingredientes contenido)
+        kcal (calcular-calorias-receta ingredientes porciones sistema)
+        porciones-num (try (Integer/parseInt porciones) (catch Exception _ 1))
+        kcal-porcion (quot kcal porciones-num)]
+    (println "\n📄 Receta:" ruta)
+    (println "Porciones originales:" porciones)
+    (println "Temperatura:" temperatura)
+    (println "Ingredientes:")
+    (doseq [i ingredientes]
+      (println "•" i))
+    (println (str "🔥 Calorías totales: " kcal " kcal"))
+    (println (str "🍽️ Calorías por porción: " kcal-porcion " kcal"))))
+
+
+
 (defn -main []
   (let [opciones (leer-options "options.txt")
         palabra (:filtra opciones)
@@ -185,6 +239,6 @@
     (if (empty? recetas-filtradas)
       (println "→ Ninguna receta coincide con el filtro.")
       (doseq [ruta recetas-filtradas]
-        (println "✔" ruta)))))
+        (procesar-receta ruta opciones)))))
 
 (-main)
