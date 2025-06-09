@@ -1,5 +1,5 @@
 ;; ------------------------------------------
-;; 🔧 Funciones básicas reemplazo de string
+;;  Funciones básicas reemplazo de string
 ;; ------------------------------------------
 
 (defn split [texto separador]
@@ -12,7 +12,7 @@
   (split texto "\n"))
 
 ;; ------------------------------------------
-;; ⚙️ Diccionarios de calorías y conversiones
+;;  Diccionarios de calorías y conversiones
 ;; ------------------------------------------
 
 (def calorias
@@ -78,7 +78,7 @@
    "parsley" 60})
 
 ;; ------------------------------------------
-;; 📄 Lista manual de archivos de recetas
+;;  Lista manual de archivos de recetas
 ;; ------------------------------------------
 
 (def archivos-recetas
@@ -89,7 +89,7 @@
    "recetas/Chimichurri Sauce.txt"])
 
 ;; ------------------------------------------
-;; 🧾 Leer y parsear options.txt sin librerías
+;;  Leer y parsear options.txt sin librerías
 ;; ------------------------------------------
 
 (defn leer-options [ruta]
@@ -103,7 +103,7 @@
                lineas))))
 
 ;; ------------------------------------------
-;; 🔍 Buscar si una palabra está en un texto
+;;  Buscar si una palabra está en un texto
 ;; ------------------------------------------
 
 (defn contiene-palabra? [linea palabra]
@@ -112,7 +112,7 @@
     (not (nil? (re-find (re-pattern (str "(?i)" p)) contenido)))))
 
 ;; ------------------------------------------
-;; 📁 Leer archivos y aplicar filtro
+;;  Leer archivos y aplicar filtro
 ;; ------------------------------------------
 
 (defn filtrar-recetas [archivos palabra-clave]
@@ -136,19 +136,19 @@
 
 
 ;; ------------------------------------------
-;; 🏁 Función principal
+;;  Función principal
 ;; ------------------------------------------
 ;; ------------------------------------------
-;; 🍽️ Extraer porciones, temperatura e ingredientes
+;;  Extraer porciones, temperatura e ingredientes
 ;; ------------------------------------------
 
 (defn extraer-porciones [texto]
   (let [lineas (split-lines texto)
-        linea (first (filter #(not (nil? (re-find #"(?i)serves\s*-\s*\d+" %))) lineas))]
+        linea (first (filter #(not (nil? (re-find #"(?i)Serves\s*-\s*\d+" %))) lineas))]
     (if linea
       (let [partes (split linea "-")
             porciones (nth partes 1)]
-        (clojure.string/trim porciones))  ;; puedes reemplazar esto con .trim si no usas clojure.string
+        (.trim porciones))
       "null")))
 
 (defn extraer-temperatura [texto]
@@ -172,7 +172,7 @@
       ["null"])))
 
 ;; ------------------------------------------
-;; 🧾 Procesar receta completa
+;;  Procesar receta completa
 ;; ------------------------------------------
 
 (defn procesar-receta [ruta]
@@ -180,12 +180,12 @@
         porciones (extraer-porciones contenido)
         temperatura (extraer-temperatura contenido)
         ingredientes (extraer-ingredientes contenido)]
-    (println "\n📄 Receta:" ruta)
+    (println "\n> Receta:" ruta)
     (println "Porciones originales:" porciones)
     (println "Temperatura:" temperatura)
     (println "Ingredientes:")
     (doseq [i ingredientes]
-      (println "•" i))))
+      (println "-" i))))
 
 
 
@@ -208,37 +208,40 @@
                         (.contains linea "large") 1
                         :else 1)
              total (* (or kcal 0) cantidad)]
+         (println "Ingrediente:" nombre "Kcal:" kcal "Cantidad:" cantidad "Total:" total)
          (+ acum total)))
      0
      ingredientes)))
+
+
 (defn procesar-receta [ruta opciones]
   (let [contenido (slurp ruta)
         porciones (:porciones opciones)
         sistema (:sistema opciones)
         temperatura (extraer-temperatura contenido)
         ingredientes (extraer-ingredientes contenido)
-        kcal (calcular-calorias-receta ingredientes porciones sistema)
-        porciones-num (try (Integer/parseInt porciones) (catch Exception _ 1))
-        kcal-porcion (quot kcal porciones-num)]
-    (println "\n📄 Receta:" ruta)
+        kcal (calcular-calorias-receta ingredientes porciones sistema)]
+    (println "\n------------------------------------------")
+    (println "\nReceta:" ruta)
     (println "Porciones originales:" porciones)
     (println "Temperatura:" temperatura)
-    (println "Ingredientes:")
+    (println "\nIngredientes:")
     (doseq [i ingredientes]
-      (println "•" i))
-    (println (str "🔥 Calorías totales: " kcal " kcal"))
-    (println (str "🍽️ Calorías por porción: " kcal-porcion " kcal"))))
+      (println "-" i))
+    (println (str "* Calorias totales: " kcal " kcal"))
+    (println (str "* Calorias por porcion: " (quot kcal porciones) " kcal"))))
 
 
 
 (defn -main []
   (let [opciones (leer-options "options.txt")
-        palabra (:filtra opciones)
-        recetas-filtradas (filtrar-recetas archivos-recetas palabra)]
-    (println "\nRecetas encontradas con filtro:" palabra)
+        keywordReceta (:filtra opciones)
+        recetas-filtradas (filtrar-recetas archivos-recetas keywordReceta)]
+    (println "\nRecetas encontradas con filtro:" keywordReceta)
     (if (empty? recetas-filtradas)
-      (println "→ Ninguna receta coincide con el filtro.")
+      (println "> Ninguna receta coincide con el filtro.")
       (doseq [ruta recetas-filtradas]
         (procesar-receta ruta opciones)))))
+        (procesar-receta[] [])
 
 (-main)

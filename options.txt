@@ -1,4 +1,4 @@
-sistema: metric
+sistema: null
 temp: C
 porciones: 4
-filtra: all
+filtra: alfredo
