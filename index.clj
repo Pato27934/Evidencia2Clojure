@@ -236,6 +236,21 @@
                   "</body>\n</html>")]
     (spit nombre-archivo html)))
 
+(defn calculoCalorias [cantidadGramos ingri]
+  (let [kcal-por-100g (get listaCalorias ingri)]
+    (if kcal-por-100g
+      (* (/ cantidadGramos 100.0) kcal-por-100g)
+      nil)))
+
+(defn caloriasTotales [ingredientes]
+  (reduce
+   (fn [total ingr]
+     (+ total (or (:calorias ingr) 0)))
+   0
+   ingredientes))
+
+
+
 (defn conversionGramosTabla [cantidad unidad ingrediente]
   (let [u (when unidad (lowerCase unidad))
         ingr (when ingrediente (lowerCase ingrediente))
@@ -274,21 +289,24 @@
      (fn [ing]
        (let [cant-str (re-find #"\d+\s+\d+/\d+|\d+/\d+|\d+" ing)
              cant (when cant-str (parse-fraccion cant-str))
-              ingri-match (re-find #"(?i)(?:[\d/\.]+\s*)?(?:cups?|pints?|ounces?|dashes?|tablespoons?|tbsp?|tsp?|teaspoons?|grams?|kgs?|ml|liters?)?\s*(.+)" ing)
-              ingri-orig (when ingri-match (lowerCase (second ingri-match)))
-              ingri (some (fn [[k _]]
-                            (when (re-find (re-pattern (str "(?i).\\b" k "s?\\b.")) ingri-orig)
-                              k))
-                          listaConversiones)
-              unidad-match (re-find unidad-regex ing)
-              unidad (when unidad-match (lowerCase (second unidad-match)))
-              cantidad-final (if (= (lowerCase tipoConversion) "metric")
-                               (conversionGramosTabla cant unidad ingri)
-                               cant)
-              unidad-final (if (nil? unidad) unidad (if (= (lowerCase tipoConversion) "metric") "grams" unidad))]
+             ingri-match (re-find #"(?i)(?:[\d/\.]+\s*)?(?:cups?|pints?|ounces?|dashes?|tablespoons?|tbsp?|tsp?|teaspoons?|grams?|kgs?|ml|liters?)?\s*(.+)" ing)
+             ingri-orig (when ingri-match (lowerCase (second ingri-match)))
+             ingri (some (fn [[k _]]
+                           (when (re-find (re-pattern (str "(?i).\\b" k "s?\\b.")) ingri-orig)
+                             k))
+                         listaConversiones)
+             unidad-match (re-find unidad-regex ing)
+             unidad (when unidad-match (lowerCase (second unidad-match)))
+             cantidadCalorias (conversionGramosTabla cant unidad ingri)
+             cantidad-final (if (= (lowerCase tipoConversion) "metric")
+                              (cantidadCalorias)
+                              cant)
+             calorias (calculoCalorias cantidadCalorias ingri)
+             unidad-final (if (nil? unidad) unidad (if (= (lowerCase tipoConversion) "metric") "grams" unidad))]
          {:cantidad cantidad-final
           :unidad unidad-final
           :ingrediente ingri-orig
+          :calorias calorias
           ;; aquí puedes agregar más campos si lo necesitas
           }))
      ingredientes)))
@@ -308,7 +326,8 @@
               autor (obtenerAutor (slurp ruta))
               porcionesRecetas (obtenerPorcion (slurp ruta))
               ingredientes (mainReceta ruta tipoConversion)
-              instrucciones (obtenerInstrucciones ruta tempConversion)]
-          (exportado titulo autor porcionesRecetas ingredientes instrucciones))))))
+              instrucciones (obtenerInstrucciones ruta tempConversion)
+              caloriasTotales (ingredientes)]
+          (exportado titulo autor porcionesRecetas ingredientes instrucciones caloriasTotales))))))
 
 (-main)
