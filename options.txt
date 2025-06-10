@@ -1,4 +1,4 @@
 sistema: null
 temp: C
 porciones: 6
-filtra: all 
+filtra: cake 

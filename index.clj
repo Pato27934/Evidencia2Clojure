@@ -93,10 +93,11 @@
 
 
 (def listaRecetas
-  (->> (file-seq (java.io.File. "recetas"))
-       (filter #(and (.isFile %) (.endsWith (.getName %) ".txt")))
-       (map #(.getPath %))
-       (into [])))
+  ["recetas/Best Homemade Brownies-1.txt"
+   "recetas/Lemon Cake-1.txt"
+   "recetas/Fettuccine Alfredo.txt"
+   "recetas/Pan-Seared Steak with Garlic Butter.txt"
+   "recetas/Chimichurri Sauce.txt"])
 
 
 (defn split [texto separador]
@@ -467,17 +468,13 @@
     (println "Recetas encontradas con filtro:" keywordReceta)
     (if (empty? recetasFiltradas)
       (println "> Ninguna receta coincide con el filtro.")
-      (doall
-       (pmap
-        (fn [ruta]
-          (let [start-time (System/nanoTime)
-                titulo (obtenerTitulo ruta)
-                autor (obtenerAutor (slurp ruta))
-                porcionesRecetas (obtenerPorcion (slurp ruta))
-                ingredientes (mainReceta ruta tipoConversion porcionesRecetas porcionesOpciones)
-                instrucciones (obtenerInstrucciones ruta tempConversion)
-                caloriasTotales (caloriasTotales ingredientes)]
-            (exportado titulo autor porcionesRecetas ingredientes instrucciones caloriasTotales porcionesRecetas porcionesOpciones)))
-        recetasFiltradas)))))
+      (doseq [ruta recetasFiltradas]
+        (let [titulo (obtenerTitulo ruta)
+              autor (obtenerAutor (slurp ruta))
+              porcionesRecetas (obtenerPorcion (slurp ruta))
+              ingredientes (mainReceta ruta tipoConversion porcionesRecetas porcionesOpciones)
+              instrucciones (obtenerInstrucciones ruta tempConversion)
+              caloriasTotales (caloriasTotales ingredientes)]
+          (exportado titulo autor porcionesRecetas ingredientes instrucciones caloriasTotales porcionesRecetas porcionesOpciones))))))
 
 (-main)
