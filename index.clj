@@ -129,30 +129,112 @@
 (defn obtenerTitulo [ruta]
   (first (splitLines (slurp ruta))))
 
+(defn obtenerInstrucciones [ruta temp]
+  (let [lineas (splitLines (slurp ruta ))
+        start (->> lineas
+                   (map-indexed vector)
+                   (filter (fn [[_ l]] (re-find #"(?i)instructions" l)))
+                   first
+                   first)]
+    (if start
+      (->> (subvec lineas (inc start))
+           (filter #(re-find #"\S" %))) ; solo líneas no vacías
+      [])))
 
-(defn split-slashed [s]
-  (let [idx (.indexOf s "/")]
-    [(subs s 0 idx) (subs s (inc idx))]))
+(defn obtenerAutor [texto]
+  (let [lineas (splitLines texto)
+        patrones [#"(?i)^\s*by\s+([^\n]+)"
+                  #"(?i)^\s*from\s+([^\n]+)"
+                  #"(?i)^\s*author\s*:\s*([^\n]+)"
+                  #"(?i)^\s*submitted\s+by\s+([^\n]+)"]
+        ;; Solo considerar líneas que empiezan con letra (ignorando espacios)
+        empieza-con-letra? (fn [linea]
+                             (boolean (re-find #"^\s*[A-Za-z]" linea)))
+        buscar-autor (fn [linea]
+                       (when (empieza-con-letra? linea)
+                         (some (fn [pat]
+                                 (let [m (re-find pat linea)]
+                                   (when m
+                                     (trim (last m)))))
+                               patrones)))]
+    (or
+     (some #(buscar-autor %) lineas)
+     "anonimo")))
 
+(defn obtenerPorcion [texto]
+  (let [lineas (splitLines texto)
+        patrones [#"(?i)^\s*servings?\s*[:-]?\s*([0-9]+)"
+                  #"(?i)^\s*serves?\s*[:-]?\s*([0-9]+)"]
+        buscar-porciones (fn [linea]
+                           (some (fn [pat]
+                                   (let [m (re-find pat linea)]
+                                     (when m
+                                       (trim (last m)))))
+                                 patrones))]
+    (or
+     (some #(buscar-porciones %) lineas)
+     "N/A")))
+
+
+(defn split-slash [s]
+  (loop [chars (seq s) current "" acc []]
+    (if (empty? chars)
+      (conj acc current)
+      (let [c (first chars)]
+        (if (= c \/)
+          (recur (rest chars) "" (conj acc current))
+          (recur (rest chars) (str current c) acc))))))
+
+(defn split-espacio [s]
+  (loop [chars (seq s) current "" acc []]
+    (if (empty? chars)
+      (conj acc current)
+      (let [c (first chars)]
+        (if (= c \space)
+          (recur (rest chars) "" (conj acc current))
+          (recur (rest chars) (str current c) acc))))))
 
 (defn parse-fraccion [s]
   (try
-    (if (not= -1 (.indexOf s "/"))
-      (let [[num den] (split-slashed s)]
-        (/ (Double/parseDouble num) (Double/parseDouble den)))
-      (Double/parseDouble s))
+    (let [parts (split-espacio s)]
+      (if (= 2 (count parts))
+        (+ (Double/parseDouble (first parts))
+           (let [[num den] (split-slash (second parts))]
+             (/ (Double/parseDouble num) (Double/parseDouble den))))
+        (if (not= -1 (.indexOf s "/"))
+          (let [[num den] (split-slash s)]
+            (/ (Double/parseDouble num) (Double/parseDouble den)))
+          (Double/parseDouble s))))
     (catch Exception _ nil)))
 
-(defn conversionAGramos [cantidad unidad]
-  (let [u (when unidad (lowerCase unidad))]
-    (cond
-      (or (= u "ounce") (= u "ounces")) (* cantidad 28.35)
-      (or (= u "cup") (= u "cups")) (* cantidad 240)
-      (or (= u "pint") (= u "pints")) (* cantidad 473)
-      (or (= u "dash") (= u "dashes")) (* cantidad 0.6)
-      (or (= u "tablespoon") (= u "tablespoons")) (* cantidad 15)
-      (or (= u "teaspoon") (= u "teaspoons")) (* cantidad 5)
-      :else cantidad)))
+
+(defn exportado [titulo autor porciones ingredientes instrucciones]
+  (let [nombre-archivo (str "salidas/" (.replaceAll (lowerCase titulo) "[^a-z0-9]+" "_") ".html")
+        porciones-html (if (not= porciones "N/A")
+                         (str "<div style=\"font-size:0.9em;color:#555;\">Porciones: " porciones "</div>\n")
+                         "")
+        ingredientes-html
+        (str "<h2>Ingredientes</h2>\n<ul>\n"
+             (apply str
+                    (for [{:keys [cantidad unidad ingrediente]} ingredientes]
+                      (str "<li>" (or cantidad "") " " (or unidad "") " " (or ingrediente "") "</li>\n")))
+             "</ul>\n")
+        instrucciones-html
+        (str "<h2>Instrucciones</h2>\n<ol>\n"
+             (apply str
+                    (for [inst instrucciones]
+                      (let [sin-num (clojure.string/replace inst #"^\s*\d+\.\s*" "")]
+                        (str "<li>" sin-num "</li>\n"))))
+             "</ol>\n")
+        html (str "<!DOCTYPE html>\n<html>\n<head>\n<title>" titulo "</title>\n</head>\n"
+                  "<body>\n"
+                  "<h1>" titulo "</h1>\n"
+                  "<div style=\"font-size:0.9em;color:#555;margin-bottom:1em;\">-- " autor "</div>\n"
+                  porciones-html
+                  ingredientes-html
+                  instrucciones-html
+                  "</body>\n</html>")]
+    (spit nombre-archivo html)))
 
 (defn conversionGramosTabla [cantidad unidad ingrediente]
   (let [u (when unidad (lowerCase unidad))
@@ -162,12 +244,12 @@
       (or (= u "gram") (= u "grams") (= u "g")) cantidad
 
       (and (or (= u "cup") (= u "cups")) factor) (* cantidad factor)
-      
+
       (or (= u "ounce") (= u "ounces")) (* cantidad 28.35)
-      
+
       (and (or (= u "pint") (= u "pints")) factor) (* cantidad factor 2)
 
-      (and (or (= u "teaspoon") (= u "tsp") ) factor) (* cantidad factor 0.0208)
+      (and (or (= u "teaspoon") (= u "tsp")) factor) (* cantidad factor 0.0208)
 
       (and (or (= u "tablespoon") (= u "tablespoons") (= u "tbsp")) factor) (* cantidad factor 0.0625)
 
@@ -184,36 +266,49 @@
                    first
                    first)
         seccion (subvec lineas (inc start))
-        ingredientes (->> seccion
-                          (take-while #(not (re-find #"(?i)instructions" %)))
-                          (filter #(re-find #"\S" %)))
-        unidad-regex #"(?i)\b(cups?|pints?|ounces?|dashes?|tablespoons?|teaspoons?|grams?|kgs?|ml|liters?)\b"]
-    (doseq [ing ingredientes]
-      (let [cant-str (re-find #"[\d/\.]+" ing)
-            cant (when cant-str (parse-fraccion cant-str))
-            unidad-match (re-find unidad-regex ing)
-            unidad (when unidad-match (lowerCase (second unidad-match)))
-            cantidad-final (if (= (lowerCase tipoConversion) "metric")
-                             (conversionAGramos cant unidad)
-                             cant)
-            unidad-final (if (nil? unidad) unidad (if (= (lowerCase tipoConversion) "metric") "grams" unidad))]
-        (println {:cantidad cantidad-final :unidad unidad-final})))))
-
-
-
+         ingredientes (->> seccion
+                           (take-while #(not (re-find #"(?i)instructions" %)))
+                           (filter #(re-find #"\S" %)))
+         unidad-regex #"(?i)\b(cups?|pints?|ounces?|dashes?|tablespoons?|tbsp?|teaspoons?|tsp?|grams?|kgs?|ml|liters?)\b"]
+    (mapv
+     (fn [ing]
+       (let [cant-str (re-find #"\d+\s+\d+/\d+|\d+/\d+|\d+" ing)
+             cant (when cant-str (parse-fraccion cant-str))
+              ingri-match (re-find #"(?i)(?:[\d/\.]+\s*)?(?:cups?|pints?|ounces?|dashes?|tablespoons?|tbsp?|tsp?|teaspoons?|grams?|kgs?|ml|liters?)?\s*(.+)" ing)
+              ingri-orig (when ingri-match (lowerCase (second ingri-match)))
+              ingri (some (fn [[k _]]
+                            (when (re-find (re-pattern (str "(?i).\\b" k "s?\\b.")) ingri-orig)
+                              k))
+                          listaConversiones)
+              unidad-match (re-find unidad-regex ing)
+              unidad (when unidad-match (lowerCase (second unidad-match)))
+              cantidad-final (if (= (lowerCase tipoConversion) "metric")
+                               (conversionGramosTabla cant unidad ingri)
+                               cant)
+              unidad-final (if (nil? unidad) unidad (if (= (lowerCase tipoConversion) "metric") "grams" unidad))]
+         {:cantidad cantidad-final
+          :unidad unidad-final
+          :ingrediente ingri-orig
+          ;; aquí puedes agregar más campos si lo necesitas
+          }))
+     ingredientes)))
 
 (defn -main []
   (let [opciones (leerOptions "options.txt")
         keywordReceta (:filtra opciones)
         tipoConversion (:sistema opciones)
+        porcionesOpciones (:porciones opciones)
+        tempConversion (:temp opciones)
         recetasFiltradas (filtrarRecetas listaRecetas keywordReceta)]
-    (println (seq tipoConversion))
-    (println "Recetas encontradas con filtro:" keywordReceta) 
+    (println "Recetas encontradas con filtro:" keywordReceta)
     (if (empty? recetasFiltradas)
       (println "> Ninguna receta coincide con el filtro.")
       (doseq [ruta recetasFiltradas]
-        ;(println ruta)
-        (println (obtenerTitulo ruta))
-        (mainReceta ruta tipoConversion)))))
+        (let [titulo (obtenerTitulo ruta)
+              autor (obtenerAutor (slurp ruta))
+              porcionesRecetas (obtenerPorcion (slurp ruta))
+              ingredientes (mainReceta ruta tipoConversion)
+              instrucciones (obtenerInstrucciones ruta tempConversion)]
+          (exportado titulo autor porcionesRecetas ingredientes instrucciones))))))
 
 (-main)

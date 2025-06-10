@@ -1,4 +1,4 @@
 sistema: null
 temp: C
 porciones: 4
-filtra: alfredo
+filtra: all 
