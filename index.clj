@@ -125,12 +125,30 @@
                      (some #(contienePalabra % keyword) ingredientes)))))))
           archivos))
 
+(defn convertir-temp [linea temp-opcion]
+  (let [matcher (re-matcher #"(\d+(?:\.\d+)?)\s*°?\s*([fFcC])\b" linea)]
+    (loop [result "" last-end 0]
+      (if (.find matcher)
+        (let [start (.start matcher)
+              end (.end matcher)
+              num (Double/parseDouble (.group matcher 1))
+              unidad (.group matcher 2)
+              unidad-lc (if (or (= unidad "c") (= unidad "C")) "c" "f")
+              nueva-temp (cond
+                           (and (= temp-opcion "c") (= unidad-lc "f"))
+                           (str (format "%g" (* (- num 32) (/ 5.0 9.0))) "°C")
+                           (and (= temp-opcion "f") (= unidad-lc "c"))
+                           (str (format "%g" (+ (* num (/ 9.0 5.0)) 32)) "°F")
+                           :else (.group matcher 0))]
+          (recur (str result (subs linea last-end start) nueva-temp) end))
+        (str result (subs linea last-end))))))
+
 ;Obtener titulo receta
 (defn obtenerTitulo [ruta]
   (first (splitLines (slurp ruta))))
 
 (defn obtenerInstrucciones [ruta temp]
-  (let [lineas (splitLines (slurp ruta ))
+  (let [lineas (splitLines (slurp ruta))
         start (->> lineas
                    (map-indexed vector)
                    (filter (fn [[_ l]] (re-find #"(?i)instructions" l)))
@@ -138,7 +156,8 @@
                    first)]
     (if start
       (->> (subvec lineas (inc start))
-           (filter #(re-find #"\S" %))) ; solo líneas no vacías
+           (filter #(re-find #"\S" %))
+           (map #(convertir-temp % temp))) ; aplicar conversión aquí
       [])))
 
 (defn obtenerAutor [texto]
@@ -175,6 +194,12 @@
      (some #(buscar-porciones %) lineas)
      "N/A")))
 
+(defn caloriasTotales [ingredientes]
+  (reduce
+   (fn [total ingr]
+     (+ total (or (:calorias ingr) 0)))
+   0
+   ingredientes))
 
 (defn split-slash [s]
   (loop [chars (seq s) current "" acc []]
@@ -212,7 +237,9 @@
   (let [nombre-archivo (str "salidas/" (.replaceAll (lowerCase titulo) "[^a-z0-9]+" "_") ".html")
         porciones-html (if (not= porciones "N/A")
                          (str "<div style=\"font-size:0.9em;color:#555;\">Porciones: " porciones "</div>\n")
-                         "")
+                         "") 
+        calorias-html (str "<div style=\"font-size:0.9em;color:#555;margin-bottom:1em;\">Calorías totales: "
+                           (int caloriasTotales) " kcal</div>\n")
         ingredientes-html
         (str "<h2>Ingredientes</h2>\n<ul>\n"
              (apply str
@@ -232,6 +259,7 @@
                   "<div style=\"font-size:0.9em;color:#555;margin-bottom:1em;\">-- " autor "</div>\n"
                   porciones-html
                   ingredientes-html
+                  calorias-html
                   instrucciones-html
                   "</body>\n</html>")]
     (spit nombre-archivo html)))
@@ -241,14 +269,6 @@
     (if kcal-por-100g
       (* (/ cantidadGramos 100.0) kcal-por-100g)
       nil)))
-
-(defn caloriasTotales [ingredientes]
-  (reduce
-   (fn [total ingr]
-     (+ total (or (:calorias ingr) 0)))
-   0
-   ingredientes))
-
 
 
 (defn conversionGramosTabla [cantidad unidad ingrediente]
