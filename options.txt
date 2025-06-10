@@ -1,4 +1,4 @@
 sistema: null
 temp: C
-porciones: 7
+porciones: 6
 filtra: all 

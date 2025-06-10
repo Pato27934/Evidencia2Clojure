@@ -1,4 +1,4 @@
-(def listaCalorias
+(def listaCalorias ; gramos a kcal
   {"granulated sugar" 773
    "all-purpose flour" 455
    "cocoa powder" 196
@@ -29,7 +29,7 @@
    "smoked paprika" 19
    "parsley" 22})
 
-(def listaConversiones
+(def listaConversiones ;taza a gramos
   {"granulated sugar" 200
    "all-purpose flour" 120
    "cocoa powder" 85
@@ -60,6 +60,38 @@
    "smoked paprika" 92
    "parsley" 60})
 
+(def listaCostos
+  {"granulated sugar" 4.5     ; azúcar estándar
+   "all-purpose flour" 3.0    ; harina de trigo
+   "cocoa powder" 12.0
+   "powdered sugar" 5.0
+   "chocolate chips" 18.0
+   "egg" 3.0                  ; por unidad promedio
+   "canola oil" 6.5
+   "extra-virgin olive oil" 22.0
+   "almond flour" 25.0
+   "baking powder" 2.0
+   "kosher salt" 0.5
+   "vanilla extract" 48.0     ; extracto real
+   "lemon zest" 2.0
+   "lemon juice" 1.5
+   "fettuccine pasta" 4.0
+   "butter" 17.0
+   "heavy cream" 12.0
+   "romano cheese" 30.0
+   "parmesan cheese" 35.0
+   "salt" 0.5
+   "garlic salt" 2.5
+   "vegetable oil" 5.5
+   "garlic" 3.5
+   "fresh rosemary" 10.0
+   "olive oil" 20.0
+   "white wine vinegar" 3.0
+   "red pepper flakes" 8.0
+   "smoked paprika" 6.5
+   "parsley" 4.0})
+
+
 (def listaRecetas
   ["recetas/Best Homemade Brownies-1.txt"
    "recetas/Lemon Cake-1.txt"
@@ -84,7 +116,6 @@
 
 (defn contieneCaracter [linea]
   (not= linea (apply str (repeat (count linea) \space))))
-
 
 (defn trim [s]
   (let [start (count (re-find #"^\s*" s))
@@ -236,27 +267,116 @@
 (defn exportado [titulo autor porciones ingredientes instrucciones caloriasTotales porcionesRecetas porcionesOpciones]
   (let [nombre-archivo (str "salidas/" (.replaceAll (lowerCase titulo) "[^a-z0-9]+" "_") ".html")
         porciones-html (if (not= porciones "N/A")
-                         (str "<div style=\"font-size:0.9em;color:#555;\">Porciones (" porcionesOpciones ")</div>\n")
+                         (str "<div class=\"porciones\">Porciones (" porcionesOpciones ")</div>\n")
                          "")
-        calorias-html (str "<div style=\"font-size:0.9em;color:#555;margin-bottom:1em;\">Calorías totales: "
+        calorias-html (str "<div class=\"calorias\">Calorías totales: "
                            (int caloriasTotales) " kcal</div>\n")
         ingredientes-html
-        (str "<h2>Ingredientes</h2>\n<ul>\n"
+        (str "<h2 class=\"ingredientes\">Ingredientes</h2>\n<ul>\n"
              (apply str
                     (for [{:keys [cantidad unidad ingrediente]} ingredientes]
-                      (str "<li>" (or cantidad "") " " (or unidad "") " " (or ingrediente "") "</li>\n")))
+                      (let [cantidad-str (if cantidad
+                                           (str "<span class=\"cantidad\">" cantidad "</span>")
+                                           "")
+                            unidad-str (or unidad "")
+                            ingrediente-str (or ingrediente "")]
+                        (str "<li>" cantidad-str " " unidad-str " " ingrediente-str "</li>\n"))))
              "</ul>\n")
         instrucciones-html
         (str "<h2>Instrucciones</h2>\n<ol>\n"
              (apply str
                     (for [inst instrucciones]
-                      (let [sin-num (clojure.string/replace inst #"^\s*\d+\.\s*" "")]
-                        (str "<li>" sin-num "</li>\n"))))
+                      (let [sin-num (.replaceAll inst "^\\s*\\d+\\.\\s*" "")
+                            temp-html (.replaceAll sin-num
+                                                   "(\\d+(?:\\.\\d+)?\\s*°\\s*[CFcf])"
+                                                   "<span class=\"temp\">$1</span>")]
+                        (str "<li>" temp-html "</li>\n"))))
              "</ol>\n")
-        html (str "<!DOCTYPE html>\n<html>\n<head>\n<title>" titulo "</title>\n</head>\n"
+        style "
+  <style>
+    body {
+      min-height: 100vh;
+      margin: 0;
+      font-family: 'Quicksand', 'Segoe UI', Arial, sans-serif;
+      background: linear-gradient(135deg, #fffbe6 0%, #ffe6f0 100%);
+      color: #222;
+    }
+    h1 {
+      font-family: 'Playfair Display', 'Georgia', serif;
+      font-size: 2.7em;
+      font-weight: 800;
+      text-align: center;
+      margin-top: 1.1em;
+      margin-bottom: 0.5em;
+      letter-spacing: 0.04em;
+      color: #a67c52;
+      text-shadow: 0 2px 8px #f3e9d2;
+    }
+    .porciones {
+      background: #fff3e0;
+      color: #b26a00;
+      font-weight: bold;
+      font-size: 1.25em;
+      padding: 0.4em 1.2em;
+      border-radius: 1.2em;
+      display: inline-block;
+      margin: 1em auto 1.5em auto;
+      text-align: center;
+      box-shadow: 0 2px 8px #f3e9d2;
+      letter-spacing: 0.03em;
+      display: block;
+      width: fit-content;
+    }
+    .ingredientes {
+      color: #b26a00;
+      background: #fff3e0;
+      padding: 0.2em 1em;
+      border-radius: 1em;
+      display: inline-block;
+      font-size: 1.4em;
+      font-weight: bold;
+      margin-bottom: 0.5em;
+      margin-top: 1.5em;
+      box-shadow: 0 2px 8px #f3e9d2;
+    }
+    h2 {
+      font-size: 1.3em;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      margin-top: 1.5em;
+    }
+    ul, ol {
+      font-size: 1.08em;
+    }
+    .cantidad {
+      color: #b8860b;
+      font-weight: bold;
+    }
+    .temp {
+      color: #cc0000;
+      font-weight: bold;
+    }
+    .calorias {
+      font-style: italic;
+      color: #888;
+      margin-bottom: 1em;
+      font-size: 1.05em;
+    }
+    .autor {
+      font-size:0.9em;
+      color:#555;
+      margin-bottom:1em;
+      text-align:center;
+    }
+  </style>
+  <link href=\"https://fonts.googleapis.com/css?family=Quicksand:400,700|Playfair+Display:700,800&display=swap\" rel=\"stylesheet\">
+"
+        html (str "<!DOCTYPE html>\n<html>\n<head>\n<title>" titulo "</title>\n"
+                  style
+                  "</head>\n"
                   "<body>\n"
                   "<h1>" titulo "</h1>\n"
-                  "<div style=\"font-size:0.9em;color:#555;margin-bottom:1em;\">-- " autor "</div>\n"
+                  "<div class=\"autor\">-- " autor "</div>\n"
                   porciones-html
                   ingredientes-html
                   calorias-html
@@ -270,6 +390,12 @@
       (* (/ cantidadGramos 100.0) kcal-por-100g)
       nil)))
 
+
+(defn analisisCosto [ingri cantidad]
+  (let [costo100g (get listaCostos ingri)]
+     (if costo100g
+       (* cantidad costo100g)
+       nil)))
 
 (defn conversionGramosTabla [cantidad unidad ingrediente]
   (let [u (when unidad (lowerCase unidad))
@@ -307,36 +433,29 @@
          unidad-regex #"(?i)\b(cups?|pints?|ounces?|dashes?|tablespoons?|tbsp?|teaspoons?|tsp?|grams?|kgs?|ml|liters?)\b"]
     (mapv
      (fn [ing]
-       (let [escalado (/ (Double/parseDouble porOpciones) (Double/parseDouble porReceta))
+       (let [escalado (/ (Integer/parseInt porOpciones) (Integer/parseInt porReceta))
              cant-str (re-find #"\d+\s+\d+/\d+|\d+/\d+|\d+" ing)
              cant (when cant-str (* (parse-fraccion cant-str) escalado))
              ingri-match (re-find #"(?i)(?:[\d/\.]+\s*)?(?:cups?|pints?|ounces?|dashes?|tablespoons?|tbsp?|tsp?|teaspoons?|grams?|kgs?|ml|liters?)?\s*(.+)" ing)
-             ingri-orig (when ingri-match (clojure.string/trim (lowerCase (second ingri-match))))
-                  ; Buscar coincidencia exacta o parcial en los mapas
-             ingri (or
-                    (some (fn [[k _]]
-                            (when (re-find (re-pattern (str "(?i)\\b" (java.util.regex.Pattern/quote k) "\\b")) ingri-orig)
-                              k))
-                          listaConversiones)
-                    (some (fn [[k _]]
-                            (when (clojure.string/includes? ingri-orig k)
-                              k))
-                          listaConversiones)
-                    ingri-orig)
+             ingri-orig (when ingri-match (lowerCase (second ingri-match)))
+             ingri (some (fn [[k _]]
+                           (when (re-find (re-pattern (str "(?i).\\b" k "s?\\b.")) ingri-orig)
+                             k))
+                         listaConversiones)
              unidad-match (re-find unidad-regex ing)
              unidad (when unidad-match (lowerCase (second unidad-match)))
-             cantidadGramos (conversionGramosTabla cant unidad ingri)
+             cantidadCalorias (conversionGramosTabla cant unidad ingri)
              cantidad-final (if (= (lowerCase tipoConversion) "metric")
-                              cantidadGramos
+                              cantidadCalorias
                               cant)
-             calorias (if (and cantidadGramos ingri)
-                        (calculoCalorias cantidadGramos ingri)
-                        0)
+             calorias (calculoCalorias cantidadCalorias ingri)
+             costo (analisisCosto ingri cantidad-final)
              unidad-final (if (nil? unidad) unidad (if (= (lowerCase tipoConversion) "metric") "grams" unidad))]
          {:cantidad cantidad-final
           :unidad unidad-final
           :ingrediente ingri-orig
-          :calorias calorias}))
+          :calorias calorias
+          :costo costo}))
      ingredientes)))
 
 (defn -main []
