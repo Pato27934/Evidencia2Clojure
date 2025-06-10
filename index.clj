@@ -208,7 +208,7 @@
     (catch Exception _ nil)))
 
 
-(defn exportado [titulo autor porciones ingredientes instrucciones]
+(defn exportado [titulo autor porciones ingredientes instrucciones caloriasTotales porcionesRecetas porcionesOpciones]
   (let [nombre-archivo (str "salidas/" (.replaceAll (lowerCase titulo) "[^a-z0-9]+" "_") ".html")
         porciones-html (if (not= porciones "N/A")
                          (str "<div style=\"font-size:0.9em;color:#555;\">Porciones: " porciones "</div>\n")
@@ -273,7 +273,7 @@
       :else cantidad)))
 
 
-(defn mainReceta [ruta tipoConversion]
+(defn mainReceta [ruta tipoConversion porReceta porOpciones]
   (let [lineas (splitLines (slurp ruta))
         start (->> lineas
                    (map-indexed vector)
@@ -287,8 +287,9 @@
          unidad-regex #"(?i)\b(cups?|pints?|ounces?|dashes?|tablespoons?|tbsp?|teaspoons?|tsp?|grams?|kgs?|ml|liters?)\b"]
     (mapv
      (fn [ing]
-       (let [cant-str (re-find #"\d+\s+\d+/\d+|\d+/\d+|\d+" ing)
-             cant (when cant-str (parse-fraccion cant-str))
+       (let [escalado (/ (Integer/parseInt porOpciones) (Integer/parseInt porReceta))
+             cant-str (re-find #"\d+\s+\d+/\d+|\d+/\d+|\d+" ing)
+             cant (when cant-str (* (parse-fraccion cant-str) escalado))
              ingri-match (re-find #"(?i)(?:[\d/\.]+\s*)?(?:cups?|pints?|ounces?|dashes?|tablespoons?|tbsp?|tsp?|teaspoons?|grams?|kgs?|ml|liters?)?\s*(.+)" ing)
              ingri-orig (when ingri-match (lowerCase (second ingri-match)))
              ingri (some (fn [[k _]]
@@ -325,9 +326,9 @@
         (let [titulo (obtenerTitulo ruta)
               autor (obtenerAutor (slurp ruta))
               porcionesRecetas (obtenerPorcion (slurp ruta))
-              ingredientes (mainReceta ruta tipoConversion)
+              ingredientes (mainReceta ruta tipoConversion porcionesRecetas porcionesOpciones)
               instrucciones (obtenerInstrucciones ruta tempConversion)
-              caloriasTotales (ingredientes)]
-          (exportado titulo autor porcionesRecetas ingredientes instrucciones caloriasTotales))))))
+              caloriasTotales (caloriasTotales ingredientes)]
+          (exportado titulo autor porcionesRecetas ingredientes instrucciones caloriasTotales porcionesRecetas porcionesOpciones))))))
 
 (-main)
