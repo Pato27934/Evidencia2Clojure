@@ -236,8 +236,8 @@
 (defn exportado [titulo autor porciones ingredientes instrucciones caloriasTotales porcionesRecetas porcionesOpciones]
   (let [nombre-archivo (str "salidas/" (.replaceAll (lowerCase titulo) "[^a-z0-9]+" "_") ".html")
         porciones-html (if (not= porciones "N/A")
-                         (str "<div style=\"font-size:0.9em;color:#555;\">Porciones: " porciones "</div>\n")
-                         "") 
+                         (str "<div style=\"font-size:0.9em;color:#555;\">Porciones (" porcionesOpciones ")</div>\n")
+                         "")
         calorias-html (str "<div style=\"font-size:0.9em;color:#555;margin-bottom:1em;\">Calorías totales: "
                            (int caloriasTotales) " kcal</div>\n")
         ingredientes-html
@@ -307,29 +307,36 @@
          unidad-regex #"(?i)\b(cups?|pints?|ounces?|dashes?|tablespoons?|tbsp?|teaspoons?|tsp?|grams?|kgs?|ml|liters?)\b"]
     (mapv
      (fn [ing]
-       (let [escalado (/ (Integer/parseInt porOpciones) (Integer/parseInt porReceta))
+       (let [escalado (/ (Double/parseDouble porOpciones) (Double/parseDouble porReceta))
              cant-str (re-find #"\d+\s+\d+/\d+|\d+/\d+|\d+" ing)
              cant (when cant-str (* (parse-fraccion cant-str) escalado))
              ingri-match (re-find #"(?i)(?:[\d/\.]+\s*)?(?:cups?|pints?|ounces?|dashes?|tablespoons?|tbsp?|tsp?|teaspoons?|grams?|kgs?|ml|liters?)?\s*(.+)" ing)
-             ingri-orig (when ingri-match (lowerCase (second ingri-match)))
-             ingri (some (fn [[k _]]
-                           (when (re-find (re-pattern (str "(?i).\\b" k "s?\\b.")) ingri-orig)
-                             k))
-                         listaConversiones)
+             ingri-orig (when ingri-match (clojure.string/trim (lowerCase (second ingri-match))))
+                  ; Buscar coincidencia exacta o parcial en los mapas
+             ingri (or
+                    (some (fn [[k _]]
+                            (when (re-find (re-pattern (str "(?i)\\b" (java.util.regex.Pattern/quote k) "\\b")) ingri-orig)
+                              k))
+                          listaConversiones)
+                    (some (fn [[k _]]
+                            (when (clojure.string/includes? ingri-orig k)
+                              k))
+                          listaConversiones)
+                    ingri-orig)
              unidad-match (re-find unidad-regex ing)
              unidad (when unidad-match (lowerCase (second unidad-match)))
-             cantidadCalorias (conversionGramosTabla cant unidad ingri)
+             cantidadGramos (conversionGramosTabla cant unidad ingri)
              cantidad-final (if (= (lowerCase tipoConversion) "metric")
-                              (cantidadCalorias)
+                              cantidadGramos
                               cant)
-             calorias (calculoCalorias cantidadCalorias ingri)
+             calorias (if (and cantidadGramos ingri)
+                        (calculoCalorias cantidadGramos ingri)
+                        0)
              unidad-final (if (nil? unidad) unidad (if (= (lowerCase tipoConversion) "metric") "grams" unidad))]
          {:cantidad cantidad-final
           :unidad unidad-final
           :ingrediente ingri-orig
-          :calorias calorias
-          ;; aquí puedes agregar más campos si lo necesitas
-          }))
+          :calorias calorias}))
      ingredientes)))
 
 (defn -main []
