@@ -311,7 +311,13 @@
              cant-str (re-find #"\d+\s+\d+/\d+|\d+/\d+|\d+" ing)
              cant (when cant-str (* (parse-fraccion cant-str) escalado))
              ingri-match (re-find #"(?i)(?:[\d/\.]+\s*)?(?:cups?|pints?|ounces?|dashes?|tablespoons?|tbsp?|tsp?|teaspoons?|grams?|kgs?|ml|liters?)?\s*(.+)" ing)
-             ingri-orig (when ingri-match (clojure.string/trim (lowerCase (second ingri-match))))
+             ingri-orig (when ingri-match
+                          (let [raw (lowerCase (second ingri-match))
+                                ;; Elimina cualquier cantidad/fracción al inicio del nombre del ingrediente
+                                cleaned (or
+                                         (second (re-find #"^(?:\d+\s+\d+/\d+|\d+/\d+|\d+)\s*(.*)$" raw))
+                                         raw)]
+                            (.trim cleaned)))
                   ; Buscar coincidencia exacta o parcial en los mapas
              ingri (or
                     (some (fn [[k _]]
@@ -319,7 +325,7 @@
                               k))
                           listaConversiones)
                     (some (fn [[k _]]
-                            (when (clojure.string/includes? ingri-orig k)
+                            (when (.contains ingri-orig k)
                               k))
                           listaConversiones)
                     ingri-orig)
