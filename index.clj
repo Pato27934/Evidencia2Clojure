@@ -1,4 +1,4 @@
-(def listaCalorias ; gramos a kcal
+(def listaCalorias ; 100 gramos a kcal
   {"granulated sugar" 773
    "all-purpose flour" 455
    "cocoa powder" 196
@@ -9,7 +9,7 @@
    "extra-virgin olive oil" 1910
    "almond flour" 640
    "baking powder" 53
-   "kosher salt" 0
+   "kosher salt" 1
    "vanilla extract" 288
    "lemon zest" 6
    "lemon juice" 54
@@ -18,7 +18,7 @@
    "heavy cream" 821
    "romano cheese" 431
    "parmesan cheese" 431
-   "salt" 0
+   "salt" 1
    "garlic salt" 5
    "vegetable oil" 1927
    "garlic" 203
@@ -133,6 +133,15 @@
                lineas))))
 
 
+(defn obtenerTiempos [ruta]
+  (let [lineas (splitLines (slurp ruta))
+        buscar (fn [pat]
+                 (some #(let [m (re-find pat %)]
+                          (when m (trim (last m))))
+                       lineas))]
+    {:prep   (buscar #"(?i)^\s*prep\s*time\s*:\s*([^\n]+)")
+     :cook   (buscar #"(?i)^\s*cook\s*time\s*:\s*([^\n]+)")
+     :total  (buscar #"(?i)^\s*total\s*time\s*:\s*([^\n]+)")}))
 
 (defn filtrarRecetas [archivos keyword]
   (filter (fn [ruta]
@@ -152,8 +161,9 @@
                  ;; Buscar en los ingredientes
                  (when start
                    (let [seccion (subvec lineas (inc start))
-                         ingredientes (take-while #(not (re-find #"(?i)instructions" %)) seccion)]
-                     (some #(contienePalabra % keyword) ingredientes)))))))
+                         ingredientes (take-while #(not (re-find #"(?i)instructions" %)) seccion)
+                         instrucciones (take-while #(not (re-find #"(?i)ingredientes" %)) seccion)]
+                     (some #(contienePalabra % keyword) (concat ingredientes instrucciones))))))))
           archivos))
 
 (defn convertir-temp [linea temp-opcion]
@@ -225,12 +235,18 @@
      (some #(buscar-porciones %) lineas)
      "N/A")))
 
+;; filepath: c:\ProyectoCLJrecetas\index.clj
 (defn caloriasTotales [ingredientes]
-  (reduce
-   (fn [total ingr]
-     (+ total (or (:calorias ingr) 0)))
-   0
-   ingredientes))
+  (let [ignorar #{"salt" "pepper" "kosher salt" "garlic salt" "fresh rosemary" "parsley" "red pepper flakes" "lemon zest"}]
+    (reduce
+      (fn [total ingr]
+        (let [ingr-nombre (some-> (:ingrediente ingr) trim lowerCase)
+              cal (or (:calorias ingr) 0)]
+          (if (or (nil? ingr-nombre) (ignorar ingr-nombre))
+            total
+            (+ total cal))))
+      0
+      ingredientes)))
 
 (defn split-slash [s]
   (loop [chars (seq s) current "" acc []]
@@ -264,13 +280,24 @@
     (catch Exception _ nil)))
 
 
-(defn exportado [titulo autor porciones ingredientes instrucciones caloriasTotales porcionesRecetas porcionesOpciones]
+(defn exportado
+  [titulo autor porciones ingredientes instrucciones caloriasTotales porcionesRecetas porcionesOpciones tiempos]
+  (let [dir (java.io.File. "salidas")]
+    (when (not (.exists dir))
+      (.mkdir dir)))
   (let [nombre-archivo (str "salidas/" (.replaceAll (lowerCase titulo) "[^a-z0-9]+" "_") ".html")
         porciones-html (if (not= porciones "N/A")
                          (str "<div class=\"porciones\">Porciones (" porcionesOpciones ")</div>\n")
                          "")
         calorias-html (str "<div class=\"calorias\">Calorías totales: "
                            (int caloriasTotales) " kcal</div>\n")
+        tiempos-html (str
+                      "<div class=\"tiempos\">"
+                      (when (:prep tiempos) (str "<span class=\"verde\"><b>Prep Time:</b> " (:prep tiempos) "</span> "))
+                      (when (:cook tiempos) (str "<span class=\"verde\"><b>Cook Time:</b> " (:cook tiempos) "</span> "))
+                      (when (:total tiempos) (str "<span class=\"verde total\"><b>Total Time:</b> " (:total tiempos) "</span>"))
+                      "</div>\n")
+        
         ingredientes-html
         (str "<h2 class=\"ingredientes\">Ingredientes</h2>\n<ul>\n"
              (apply str
@@ -280,7 +307,7 @@
                                            "")
                             unidad-str (or unidad "")
                             ingrediente-str (or ingrediente "")]
-                        (str "<li>" cantidad-str " " unidad-str " " ingrediente-str "</li>\n"))))
+                        (str "<li>" cantidad-str " " unidad-str " <strong>" ingrediente-str "</strong></li>\n"))))
              "</ul>\n")
         instrucciones-html
         (str "<h2>Instrucciones</h2>\n<ol>\n"
@@ -339,6 +366,24 @@
       margin-top: 1.5em;
       box-shadow: 0 2px 8px #f3e9d2;
     }
+    .tiempos {
+      margin: 0.5em auto 1em auto;
+      text-align: center;
+      font-size: 1.08em;
+      font-family: 'Quicksand', 'Segoe UI', Arial, sans-serif;
+      font-weight: bold;
+      letter-spacing: 0.01em;
+    }
+    .tiempos .verde {
+      color: #2e7d4f;
+    }
+    .tiempos .total {
+      display: block;
+      margin-top: 0.5em;
+      color: #388e3c;
+      font-size: 1.25em;
+      font-weight: bold;
+    }
     h2 {
       font-size: 1.3em;
       font-weight: 700;
@@ -377,25 +422,25 @@
                   "<body>\n"
                   "<h1>" titulo "</h1>\n"
                   "<div class=\"autor\">-- " autor "</div>\n"
+                  tiempos-html
                   porciones-html
                   ingredientes-html
                   calorias-html
                   instrucciones-html
                   "</body>\n</html>")]
     (spit nombre-archivo html)))
-
 (defn calculoCalorias [cantidadGramos ingri]
   (let [kcal-por-100g (get listaCalorias ingri)]
-    (if kcal-por-100g
+    (if (and kcal-por-100g cantidadGramos)
       (* (/ cantidadGramos 100.0) kcal-por-100g)
-      nil)))
+      0)))
 
 
 (defn analisisCosto [ingri cantidad]
   (let [costo100g (get listaCostos ingri)]
-     (if costo100g
-       (* cantidad costo100g)
-       nil)))
+    (if (and costo100g cantidad)
+      (* cantidad costo100g)
+      nil)))
 
 (defn conversionGramosTabla [cantidad unidad ingrediente]
   (let [u (when unidad (lowerCase unidad))
@@ -419,6 +464,8 @@
       :else cantidad)))
 
 
+
+
 (defn mainReceta [ruta tipoConversion porReceta porOpciones]
   (let [lineas (splitLines (slurp ruta))
         start (->> lineas
@@ -427,21 +474,19 @@
                    first
                    first)
         seccion (subvec lineas (inc start))
-         ingredientes (->> seccion
-                           (take-while #(not (re-find #"(?i)instructions" %)))
-                           (filter #(re-find #"\S" %)))
-         unidad-regex #"(?i)\b(cups?|pints?|ounces?|dashes?|tablespoons?|tbsp?|teaspoons?|tsp?|grams?|kgs?|ml|liters?)\b"]
+        ingredientes (->> seccion
+                          (take-while #(not (re-find #"(?i)instructions" %)))
+                          (filter #(re-find #"\S" %)))
+        unidad-regex #"(?i)\b(cups?|pints?|ounces?|dashes?|tablespoons?|tbsp?|teaspoons?|tsp?|grams?|kgs?|ml|liters?)\b"]
     (mapv
      (fn [ing]
+       ;; filepath: c:\ProyectoCLJrecetas\index.clj
        (let [escalado (/ (Integer/parseInt porOpciones) (Integer/parseInt porReceta))
              cant-str (re-find #"\d+\s+\d+/\d+|\d+/\d+|\d+" ing)
              cant (when cant-str (* (parse-fraccion cant-str) escalado))
              ingri-match (re-find #"(?i)(?:[\d/\.]+\s*)?(?:cups?|pints?|ounces?|dashes?|tablespoons?|tbsp?|tsp?|teaspoons?|grams?|kgs?|ml|liters?)?\s*(.+)" ing)
-             ingri-orig (when ingri-match (lowerCase (second ingri-match)))
-             ingri (some (fn [[k _]]
-                           (when (re-find (re-pattern (str "(?i).\\b" k "s?\\b.")) ingri-orig)
-                             k))
-                         listaConversiones)
+             ingri-orig (lowerCase (trim (or (second ingri-match) "")))
+             ingri (first (filter #(not= -1 (.indexOf ingri-orig %)) (keys listaConversiones)))
              unidad-match (re-find unidad-regex ing)
              unidad (when unidad-match (lowerCase (second unidad-match)))
              cantidadCalorias (conversionGramosTabla cant unidad ingri)
@@ -472,9 +517,10 @@
         (let [titulo (obtenerTitulo ruta)
               autor (obtenerAutor (slurp ruta))
               porcionesRecetas (obtenerPorcion (slurp ruta))
+              tiempos (obtenerTiempos ruta) ; <--- AGREGA ESTA LÍNEA
               ingredientes (mainReceta ruta tipoConversion porcionesRecetas porcionesOpciones)
               instrucciones (obtenerInstrucciones ruta tempConversion)
               caloriasTotales (caloriasTotales ingredientes)]
-          (exportado titulo autor porcionesRecetas ingredientes instrucciones caloriasTotales porcionesRecetas porcionesOpciones))))))
+          (exportado titulo autor porcionesRecetas ingredientes instrucciones caloriasTotales porcionesRecetas porcionesOpciones tiempos))))))
 
 (-main)
