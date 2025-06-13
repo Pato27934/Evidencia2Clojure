@@ -1,4 +1,9 @@
 sistema: metric
 temp: C
+<<<<<<< HEAD
 porciones: 7
 filtra: paper 
+=======
+porciones: 6
+filtra: cake 
+>>>>>>> 556eb2f9868431aeaae90cbbbcb05b9e1131c6be

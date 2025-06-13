@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 (def listaCalorias ; 100 gramos a kcal
+=======
+(def listaCalorias ; gramos a kcal
+>>>>>>> 556eb2f9868431aeaae90cbbbcb05b9e1131c6be
   {"granulated sugar" 773
    "all-purpose flour" 455
    "cocoa powder" 196
@@ -286,6 +290,7 @@
     (when (not (.exists dir))
       (.mkdir dir)))
   (let [nombre-archivo (str "salidas/" (.replaceAll (lowerCase titulo) "[^a-z0-9]+" "_") ".html")
+<<<<<<< HEAD
         porciones-html (if (not= porcionesOpciones "N/A")
                          (str "<div class=\"porciones\">Porciones (" porcionesOpciones ")</div>\n")
                          "")
@@ -301,6 +306,13 @@
                       (when (:total tiempos) (str "<span class=\"verde total\"><b>Total Time:</b> " (:total tiempos) "</span>"))
                       "</div>\n")
 
+=======
+        porciones-html (if (not= porciones "N/A")
+                         (str "<div class=\"porciones\">Porciones (" porcionesOpciones ")</div>\n")
+                         "")
+        calorias-html (str "<div class=\"calorias\">Calorías totales: "
+                           (int caloriasTotales) " kcal</div>\n")
+>>>>>>> 556eb2f9868431aeaae90cbbbcb05b9e1131c6be
         ingredientes-html
         (str "<h2 class=\"ingredientes\">Ingredientes</h2>\n<ul>\n"
              (apply str
@@ -310,7 +322,11 @@
                                            "")
                             unidad-str (or unidad "")
                             ingrediente-str (or ingrediente "")]
+<<<<<<< HEAD
                         (str "<li>" cantidad-str " " unidad-str " <strong>" ingrediente-str "</strong></li>\n"))))
+=======
+                        (str "<li>" cantidad-str " " unidad-str " " ingrediente-str "</li>\n"))))
+>>>>>>> 556eb2f9868431aeaae90cbbbcb05b9e1131c6be
              "</ul>\n")
         instrucciones-html
         (str "<h2 class=\"ingredientes\">Instrucciones</h2>\n<ol>\n"
@@ -369,6 +385,7 @@
       margin-top: 1.5em;
       box-shadow: 0 2px 8px #f3e9d2;
     }
+<<<<<<< HEAD
     .tiempos {
       margin: 0.5em auto 1em auto;
       text-align: center;
@@ -387,6 +404,8 @@
       font-size: 1.25em;
       font-weight: bold;
     }
+=======
+>>>>>>> 556eb2f9868431aeaae90cbbbcb05b9e1131c6be
     h2 {
       font-size: 1.3em;
       font-weight: 700;
@@ -425,7 +444,10 @@
                   "<body>\n"
                   "<h1>" titulo "</h1>\n"
                   "<div class=\"autor\">-- " autor "</div>\n"
+<<<<<<< HEAD
                   tiempos-html
+=======
+>>>>>>> 556eb2f9868431aeaae90cbbbcb05b9e1131c6be
                   porciones-html
                   ingredientes-html
                   calorias-html
@@ -441,9 +463,15 @@
 
 (defn analisisCosto [ingri cantidad]
   (let [costo100g (get listaCostos ingri)]
+<<<<<<< HEAD
     (if (and costo100g cantidad)
       (* cantidad costo100g)
       nil)))
+=======
+     (if costo100g
+       (* cantidad costo100g)
+       nil)))
+>>>>>>> 556eb2f9868431aeaae90cbbbcb05b9e1131c6be
 
 (defn conversionGramosTabla [cantidad unidad ingrediente]
   (let [u (when unidad (lowerCase unidad))
@@ -483,13 +511,24 @@
         unidad-regex #"(?i)\b(cups?|pints?|ounces?|dashes?|tablespoons?|tbsp?|teaspoons?|tsp?|grams?|kgs?|ml|liters?)\b"]
     (mapv
      (fn [ing]
+<<<<<<< HEAD
        ;; filepath: c:\ProyectoCLJrecetas\index.clj
+=======
+>>>>>>> 556eb2f9868431aeaae90cbbbcb05b9e1131c6be
        (let [escalado (/ (Integer/parseInt porOpciones) (Integer/parseInt porReceta))
              cant-str (re-find #"\d+\s+\d+/\d+|\d+/\d+|\d+" ing)
              cant (when cant-str (* (parse-fraccion cant-str) escalado))
              ingri-match (re-find #"(?i)(?:[\d/\.]+\s*)?(?:cups?|pints?|ounces?|dashes?|tablespoons?|tbsp?|tsp?|teaspoons?|grams?|kgs?|ml|liters?)?\s*(.+)" ing)
+<<<<<<< HEAD
              ingri-orig (lowerCase (trim (or (second ingri-match) "")))
              ingri (first (filter #(not= -1 (.indexOf ingri-orig %)) (keys listaConversiones)))
+=======
+             ingri-orig (when ingri-match (lowerCase (second ingri-match)))
+             ingri (some (fn [[k _]]
+                           (when (re-find (re-pattern (str "(?i).\\b" k "s?\\b.")) ingri-orig)
+                             k))
+                         listaConversiones)
+>>>>>>> 556eb2f9868431aeaae90cbbbcb05b9e1131c6be
              unidad-match (re-find unidad-regex ing)
              unidad (when unidad-match (lowerCase (second unidad-match)))
              cantidadCalorias (conversionGramosTabla cant unidad ingri)
