@@ -1,4 +1,4 @@
-sistema: null
+sistema: metric
 temp: C
 porciones: 7
-filtra: all 
+filtra: paper 
